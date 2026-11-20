@@ -1203,6 +1203,17 @@ function jsonp(url, timeout = 12000) {
   });
 }
 const CC = 'https://www.cartociudad.es/geocoder/api/geocoder/';
+/* Zona de trabajo: todo limitado a Andalucía (búsquedas, selector de ciudad y mapa).
+   Para quitarlo: ZONA = null */
+const ZONA = {
+  nombre: 'Andalucía',
+  ccaa: 'Andalucía',
+  provincias: ['04', '11', '14', '18', '21', '23', '29', '41'], // Almería, Cádiz, Córdoba, Granada, Huelva, Jaén, Málaga, Sevilla
+  bounds: [[35.85, -7.65], [38.85, -1.5]],
+  viewbox: '-7.65,38.85,-1.5,35.85',
+};
+const ZF = ZONA ? `&comunidad_autonoma_filter=${encodeURIComponent(ZONA.ccaa)}` : '';
+const enZona = c => !ZONA || !c.provinceCode || ZONA.provincias.includes(String(c.provinceCode).padStart(2, '0'));
 function serialGeo(fn) { const p = geoQueue.then(fn, fn); geoQueue = p.catch(() => {}); return p; }
 
 function reqNumber(calle) { const m = String(calle).match(/\b(\d+)\s*[a-z]?\b(?!.*\b\d+\b)/i); return m ? parseInt(m[1], 10) : null; }
@@ -1213,7 +1224,7 @@ function muniMatch(a, b) {
 }
 // CartoCiudad es estricto: sin provincia en la consulta, y a veces sin el tipo de vía ("Iglesias 9, Colomera")
 const RX_TIPO = /^(calle|cuesta|avenida|plaza|camino|paseo|traves[ií]a|carretera|barrio|barriada|urbanizaci[oó]n|pasaje|ronda|callej[oó]n|carril|glorieta|vereda)\s+((de\s+)?(las?|los|el)\s+|del\s+|de\s+)?/i;
-async function ccList(q) { let r = await jsonp(`${CC}candidatesJsonp?limit=15&q=${encodeURIComponent(q)}`); return Array.isArray(r) ? r : (r ? [r] : []); }
+async function ccList(q) { let r = await jsonp(`${CC}candidatesJsonp?limit=15${ZF}&q=${encodeURIComponent(q)}`); return (Array.isArray(r) ? r : (r ? [r] : [])).filter(enZona); }
 function geomMid(geom) {
   const nums = String(geom || '').match(/-?\d+\.\d+/g); if (!nums || nums.length < 2) return null;
   const pts = []; for (let i = 0; i + 1 < nums.length; i += 2) pts.push([+nums[i], +nums[i + 1]]);
@@ -1280,7 +1291,7 @@ async function streetCandidates(calle, extra) {
   if (sinNum && sinNum !== calle) qs.push(sinNum + (extra ? ', ' + extra : ''));
   let list = [];
   for (const q of qs) {
-    try { let r = await jsonp(`${CC}candidatesJsonp?limit=50&no_process=${encodeURIComponent(NO_PROC)}&q=${encodeURIComponent(q)}`); if (!Array.isArray(r)) r = r ? [r] : []; list = list.concat(r); } catch (e) { if (q === qs[0]) throw e; }
+    try { let r = await jsonp(`${CC}candidatesJsonp?limit=50${ZF}&no_process=${encodeURIComponent(NO_PROC)}&q=${encodeURIComponent(q)}`); if (!Array.isArray(r)) r = r ? [r] : []; r = r.filter(enZona); list = list.concat(r); } catch (e) { if (q === qs[0]) throw e; }
   }
   if (extra) { const ex = norm(extra); const f = list.filter(c => norm(`${c.muni} ${c.poblacion} ${c.province}`).includes(ex)); if (f.length) list = f; }
   const want = norm(sinNum.replace(/^(calle|avenida|plaza|camino|cuesta|paseo|travesia|carretera|barrio)\s+/i, ''));
@@ -1307,14 +1318,14 @@ async function resolveCandidate(c, calle) {
 function pickStreet(calle, reason) {
   return new Promise(async resolve => {
     const sh = $('#sheet');
-    sh.innerHTML = `<h2>¿Qué «${esc(calle)}»?<button id="pkX">✕</button></h2><div class="hint">${esc(reason || '')}</div><div class="empty">Buscando en toda España…</div>`;
+    sh.innerHTML = `<h2>¿Qué «${esc(calle)}»?<button id="pkX">✕</button></h2><div class="hint">${esc(reason || '')}</div><div class="empty">Buscando en ${ZONA ? ZONA.nombre : 'toda España'}…</div>`;
     $('#modal').classList.add('show');
     let done = false; const finish = v => { if (done) return; done = true; closeModal(); resolve(v); };
     $('#pkX').onclick = () => finish(null);
     let cands = [];
     try { cands = await streetCandidates(calle); } catch (e) { sh.querySelector('.empty').textContent = 'No se pudo consultar el callejero (¿sin conexión?).'; return; }
     if (done) return;
-    if (!cands.length) { sh.querySelector('.empty').innerHTML = 'No hay ninguna calle con ese nombre.<br>Revisa cómo está escrita o colócalo a mano.'; return; }
+    if (!cands.length) { sh.querySelector('.empty').innerHTML = `No hay ninguna calle con ese nombre${ZONA ? ' en ' + ZONA.nombre : ''}.<br>Revisa cómo está escrita o colócalo a mano.`; return; }
     // orden: cerca de lo ya pinchado, después por provincia
     const ref = S.points.filter(hasLL);
     const refLL = ref.length ? { lat: median(ref.map(q => q.lat)), lng: median(ref.map(q => q.lng)) } : null;
@@ -1379,7 +1390,7 @@ let lastNomi = 0;
 async function geocodeNominatim(calle, muni) {
   const wait = 1100 - (Date.now() - lastNomi); if (wait > 0) await sleep(wait); lastNomi = Date.now();
   const q = [calle, muni, 'España'].filter(Boolean).join(', ');
-  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=3&countrycodes=es&accept-language=es&q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' } });
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=3&countrycodes=es${ZONA ? '&bounded=1&viewbox=' + ZONA.viewbox : ''}&accept-language=es&q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' } });
   if (!r.ok) return null;
   const arr = await r.json(); if (!arr.length) return null;
   const muniName = String(muni || '').split(',')[0];
@@ -1474,7 +1485,7 @@ function verdict(A) {
 }
 
 /* ================= Mapa ================= */
-const map = L.map('map', { zoomControl: true, attributionControl: true, maxZoom: 20 }).setView([37.18, -3.6], 9);
+const map = L.map('map', Object.assign({ zoomControl: true, attributionControl: true, maxZoom: 20 }, ZONA ? { maxBounds: L.latLngBounds(ZONA.bounds).pad(0.15), maxBoundsViscosity: 0.8, minZoom: 7 } : {})).setView([37.4, -4.5], 7);
 const IGN = (svc, layer, fmt) => `https://www.ign.es/wmts/${svc}?service=WMTS&request=GetTile&version=1.0.0&Format=image/${fmt}&layer=${layer}&style=default&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}`;
 const ESRI = n => `https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`;
 const BASES = {
@@ -1717,7 +1728,7 @@ function bindSingle() {
     if (!p.direccion && !p.nombre) return toast('Pon al menos una dirección', true);
     if (p.direccion && !p.municipio) {
       S.points.push(p); clearSingle(); save(); renderAll(false);
-      const ok = await choosePlace(p, 'No has puesto municipio: elige el pueblo.');
+      const ok = await choosePlace(p, 'No has puesto municipio: elige el pueblo (solo Andalucía).');
       if (!ok) { renderAll(false); toast(`#${numberOf(p)} sin ubicar: elige ciudad o colócalo a mano`, true); }
       return;
     }
@@ -1887,11 +1898,11 @@ async function flyToMuni() {
   if (S.points.some(hasLL) || map.getZoom() >= 14) return;
   const m = S.municipio || mostCommonMuni(); if (!m) return;
   try {
-    let list = await jsonp(`${CC}candidatesJsonp?limit=5&q=${encodeURIComponent(m)}`, 6000); if (!Array.isArray(list)) list = list ? [list] : [];
+    let list = await jsonp(`${CC}candidatesJsonp?limit=5${ZF}&q=${encodeURIComponent(String(m).split(',')[0])}`, 6000); if (!Array.isArray(list)) list = list ? [list] : []; list = list.filter(enZona);
     const c = list.find(x => x.lat && x.lng && ['poblacion', 'municipio', 'Municipio', 'Población'].includes(x.type)) || list.find(x => x.lat && x.lng);
     if (c) { map.setView([+c.lat, +c.lng], 16); return; }
   } catch (e) {}
-  try { const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=es&q=${encodeURIComponent(m)}`); const j = await r.json(); if (j[0]) map.setView([+j[0].lat, +j[0].lon], 16); } catch (e) {}
+  try { const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=es${ZONA ? '&bounded=1&viewbox=' + ZONA.viewbox : ''}&q=${encodeURIComponent(m)}`); const j = await r.json(); if (j[0]) map.setView([+j[0].lat, +j[0].lon], 16); } catch (e) {}
 }
 function startPlace(mode) {
   placeMode = mode; bannerUpdate(); flyToMuni();
