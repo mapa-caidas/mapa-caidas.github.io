@@ -2058,7 +2058,7 @@ function openIncident(inc) {
   fillInc(); $('#defMuni').value = S.municipio || ''; renderReview(); renderAll(true); renderHist();
   showTab(S.points.length ? 'puntos' : 'anadir');
 }
-function flushSave() { clearTimeout(saveT); try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} if (!isEmptyInc(S)) { const h = loadHist(); S.modificada = new Date().toISOString(); h[S.id] = S; writeHist(h); } }
+function flushSave() { clearTimeout(saveT); try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} if (!isEmptyInc(S)) { const h = loadHist(); S.modificada = new Date().toISOString(); h[S.id] = S; writeHist(h); } if (typeof renderHist === 'function') renderHist(); }
 function histItems() { return Object.values(loadHist()).sort((a, b) => String(b.modificada || b.fecha).localeCompare(String(a.modificada || a.fecha))); }
 function histRowHtml(x, compact) {
   const down = x.points.filter(p => p.tipo === 'caido').length; const cur = x.id === S.id;

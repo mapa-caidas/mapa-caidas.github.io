@@ -1,5 +1,5 @@
 /* Mapa de Caídas — service worker */
-const VERSION = 'caidas-v1.5.1';
+const VERSION = 'caidas-v1.5.2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const TILES = 'caidas-tiles';
 const MAX_TILES = 600;
