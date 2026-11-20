@@ -1132,8 +1132,51 @@ function splitAddress(raw) {
   return { calle: normalizeStreet(s), muni: '' };
 }
 
+/** Tablas pegadas (Excel, Word, Sheets): una fila por cliente, columnas separadas por tabulador, «|» o «;» */
+function parseTable(lines) {
+  const sep = lines.some(l => l.includes('\t')) ? '\t' : lines.filter(l => l.includes('|')).length >= 2 ? '|' : lines.filter(l => (l.match(/;/g) || []).length >= 2).length >= 2 ? ';' : null;
+  if (!sep) return null;
+  const rows = lines.map(l => l.split(sep).map(c => c.trim()).filter(c => c !== '')).filter(r => r.length >= 2);
+  if (!rows.length) return null;
+  const head = rows[0].map(c => norm(c));
+  const isHead = head.some(c => /^(cliente|nombre|titular|direccion|domicilio|telefono|tlf|movil|municipio|poblacion|notas?)$/.test(c));
+  const ix = {};
+  if (isHead) head.forEach((c, i) => {
+    if (/cliente|nombre|titular/.test(c)) { if (ix.nombre == null) ix.nombre = i; }
+    else if (/direc|domic|calle/.test(c)) { if (ix.direccion == null) ix.direccion = i; }
+    else if (/telef|tlf|movil|contacto/.test(c)) { if (ix.telefono == null) ix.telefono = i; }
+    else if (/munic|poblac|localidad|pueblo/.test(c)) { if (ix.municipio == null) ix.municipio = i; }
+    else if (/nota|observ|coment/.test(c)) { if (ix.notas == null) ix.notas = i; }
+  });
+  const out = [];
+  for (const r of (isHead ? rows.slice(1) : rows)) {
+    const o = { nombre: '', telefono: '', direccion: '', municipio: '', notas: '', tipo: 'caido' };
+    const used = new Set(); const extra = [];
+    if (isHead) for (const k in ix) if (r[ix[k]] != null) { o[k] = r[ix[k]]; used.add(ix[k]); }
+    r.forEach((c, i) => {
+      if (used.has(i)) return;
+      const ph = c.match(RX_PHONE);
+      if (!o.telefono && ph && c.replace(/[\s.\-+]/g, '').replace(/^34/, '').length <= 12) { o.telefono = c; used.add(i); }
+      else if (!o.direccion && (RX_STREET.test(c) || (/\d/.test(c) && /[a-záéíóúñ]{3}/i.test(c)))) { o.direccion = c; used.add(i); }
+      else if (!o.nombre && !/\d/.test(c)) { o.nombre = c; used.add(i); }
+      else extra.push(c);
+    });
+    const notes = [];
+    o.nombre = o.nombre.replace(/\(([^)]*)\)/g, (m, a) => { notes.push(a.trim()); return ''; });
+    o.direccion = o.direccion.replace(/\(([^)]*)\)/g, (m, a) => { if (!/sin ubicar|no ubicad/i.test(a)) notes.push(a.trim()); return ''; });
+    const ph = o.telefono.match(RX_PHONE); o.telefono = ph ? ph[1] + ph[2] + ph[3] : o.telefono.replace(/\D/g, '');
+    o.nombre = cleanName(o.nombre);
+    if (o.direccion) { const sp = splitAddress(o.direccion); o.direccion = sp.calle; if (sp.muni && !o.municipio) o.municipio = sp.muni; }
+    if (o.municipio) o.municipio = splitProvince(o.municipio);
+    o.notas = [o.notas, ...notes.map(n => n.charAt(0).toUpperCase() + n.slice(1)), ...extra].filter(Boolean).join('. ');
+    if (/con servicio/i.test(o.notas)) o.tipo = 'servicio';
+    if (o.nombre || o.direccion || o.telefono) out.push(o);
+  }
+  return out.length ? out : null;
+}
 function parseBulk(text) {
   const lines = String(text).replace(/\r/g, '').split('\n').map(l => l.replace(/ /g, ' ').trim()).filter(Boolean);
+  const tab = parseTable(lines); if (tab) return tab;
   const blocks = []; let cur = [];
   for (const l of lines) {
     cur.push(l);
@@ -2453,7 +2496,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 // API mínima para pruebas
-window.__app = { parseBulk, analyze, get S() { return S; }, set S(v) { S = v; }, renderAll, renderCanvas, kml, csv, geojson, standaloneHTML, textSummary, normalizeStreet, splitAddress };
+window.__app = { parseBulk, parseTable, analyze, get S() { return S; }, set S(v) { S = v; }, renderAll, renderCanvas, kml, csv, geojson, standaloneHTML, textSummary, normalizeStreet, splitAddress };
 
 </script>
 </body>
