@@ -839,6 +839,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     .progress{height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:8px}
     .progress div{height:100%;background:var(--accent);width:0;transition:width .2s}
 
+    .wm{position:absolute;inset:0;z-index:450;pointer-events:none;background-repeat:repeat;opacity:.11}
+    .autor{font-size:10.5px;color:var(--ink3);text-align:center;padding:6px 8px;border-top:1px solid var(--line);background:#fff;flex:none}
     #printArea{display:none}
     @media print{
       @page{size:A4;margin:10mm}
@@ -882,6 +884,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="layout">
     <div class="mapwrap">
       <div id="map"></div>
+      <div class="wm" id="wm" aria-hidden="true"></div>
       <div class="mctl tl">
         <button class="mbtn" id="bLayer" title="Cambiar fondo">🗺️ Callejero IGN</button>
         <button class="mbtn" id="bPlace" title="Pinchar clientes en el mapa">📌 Pinchar</button>
@@ -966,6 +969,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         <input type="file" id="fileIn" accept=".json,.geojson,.csv,application/json,text/csv" hidden />
         <p class="hint" style="margin-top:10px">No se guarda nada en ningún servidor: todo queda en este navegador. Si borras los datos del navegador o mueves el archivo index.html de carpeta, se pierden. Exporta el .json de las que quieras conservar.</p>
       </section>
+      <div class="autor">© David Villa · Mapa de Caídas · Uso sin autorización prohibido · <a href="#" id="bAutor" style="color:inherit">Info</a></div>
     </aside>
   </div>
 
@@ -2483,6 +2487,25 @@ async function exportPDF() {
 }
 
 /* ================= Arranque ================= */
+/* ================= Autoría ================= */
+const AUTOR = '© David Villa · Uso sin autorización prohibido';
+(function marcaAgua() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="220"><text x="210" y="110" text-anchor="middle" transform="rotate(-24 210 110)" font-family="Segoe UI,Roboto,Arial,sans-serif" font-size="17" font-weight="700" fill="#0f172a">${AUTOR}</text></svg>`;
+  $('#wm').style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+})();
+function avisoAutor(force) {
+  let visto = false; try { visto = localStorage.getItem('mapa-caidas-autor') === '1'; } catch (e) {}
+  if (visto && !force) return;
+  $('#sheet').innerHTML = `<h2>Mapa de Caídas<button onclick="closeModal()">✕</button></h2>
+    <p style="font-size:14px;line-height:1.55;margin-bottom:10px">Aplicación creada por <b>David Villa</b>.</p>
+    <p style="font-size:13px;line-height:1.55;color:#475569;margin-bottom:14px">© David Villa. Todos los derechos reservados. Queda prohibido su uso, copia, distribución o modificación sin autorización expresa del autor.</p>
+    <div class="pact"><button class="btn pri" id="bAutorOk">Entendido</button></div>`;
+  $('#modal').classList.add('show');
+  $('#bAutorOk').onclick = () => { try { localStorage.setItem('mapa-caidas-autor', '1'); } catch (e) {} closeModal(); };
+}
+$('#bAutor').onclick = e => { e.preventDefault(); avisoAutor(true); };
+setTimeout(() => avisoAutor(false), 400);
+
 $('#singleForm').innerHTML = singleFormHtml(); bindSingle();
 $('#bHist').onclick = showHistModal;
 // migrar la incidencia abierta de versiones anteriores al historial

@@ -1,7 +1,7 @@
 {
   "name": "Mapa de Caídas",
   "short_name": "Caídas",
-  "description": "Mapa de clientes caídos por zona: ubica, analiza cercanía y exporta para planta externa.",
+  "description": "Mapa de clientes caídos por zona: ubica, analiza cercanía y exporta para planta externa. © David Villa · Uso sin autorización prohibido.",
   "lang": "es",
   "start_url": "./",
   "scope": "./",
