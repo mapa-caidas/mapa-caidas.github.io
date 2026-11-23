@@ -839,7 +839,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
     .progress{height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:8px}
     .progress div{height:100%;background:var(--accent);width:0;transition:width .2s}
 
-    .wm{position:absolute;inset:0;z-index:450;pointer-events:none;background-repeat:repeat;opacity:.11}
     .autor{font-size:10.5px;color:var(--ink3);text-align:center;padding:6px 8px;border-top:1px solid var(--line);background:#fff;flex:none}
     #printArea{display:none}
     @media print{
@@ -884,7 +883,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="layout">
     <div class="mapwrap">
       <div id="map"></div>
-      <div class="wm" id="wm" aria-hidden="true"></div>
       <div class="mctl tl">
         <button class="mbtn" id="bLayer" title="Cambiar fondo">🗺️ Callejero IGN</button>
         <button class="mbtn" id="bPlace" title="Pinchar clientes en el mapa">📌 Pinchar</button>
@@ -2489,10 +2487,6 @@ async function exportPDF() {
 /* ================= Arranque ================= */
 /* ================= Autoría ================= */
 const AUTOR = '© David Villa · Uso sin autorización prohibido';
-(function marcaAgua() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="220"><text x="210" y="110" text-anchor="middle" transform="rotate(-24 210 110)" font-family="Segoe UI,Roboto,Arial,sans-serif" font-size="17" font-weight="700" fill="#0f172a">${AUTOR}</text></svg>`;
-  $('#wm').style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
-})();
 function avisoAutor(force) {
   let visto = false; try { visto = localStorage.getItem('mapa-caidas-autor') === '1'; } catch (e) {}
   if (visto && !force) return;
